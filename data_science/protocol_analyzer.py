@@ -290,11 +290,98 @@ class ProtocolAnalyzer:
     
     # analyze all protocols in the directory
     def analyze_all_protocols(self):
-        return None
+        # create list of all subdirectories in the base directory to go through
+        protocol_folders = [f for f in self.base_dir.iterdir() if f.is_dir()]
+        
+        print(f"Analyzing {len(protocol_folders)} protocols...")
+        
+        # loop through each protocol folder
+        for i, folder in enumerate(protocol_folders):
+            # print updates 
+            if i % 50 == 0:
+                print(f"Progress: {i}/{len(protocol_folders)}")
+            
+            # extract code as string
+            code = self.extract_protocol_code(folder)
+            if code:
+                # folder.name gets passed as the name of the protocol; analysis run
+                structure = self.analyze_protocol_structure(code, folder.name)
+
+                # appending index to store protocol names that fall under each type
+                self.analysis_results['protocol_structures'].append(structure)
+                self.analysis_results['protocol_types'][structure['protocol_type']].append(folder.name)
+
+                # store summary stats 
+                self.analysis_results['complexity_metrics'].append({
+                    'name': folder.name,
+                    'complexity': structure['complexity'],
+                    'lines': structure['total_lines'],
+                    'type': structure['protocol_type']
+                })
 
     # create simple analysis report 
     def generate_analysis_report(self):
-        return None
+        # building the structure of the report 
+        report = {
+            'summary': { 
+                # count how many protocols were analyzed
+                'total_protocols': len(self.analysis_results['protocol_structures']),
+                # break down protocols by type
+                'protocol_types': dict(Counter(s['protocol_type'] for s in self.analysis_results['protocol_structures'])),
+                # find average length of protocols
+                'avg_lines': sum(s['total_lines'] for s in self.analysis_results['protocol_structures']) / len(self.analysis_results['protocol_structures']),
+                # initialize complexity variables
+                'complexity_distribution': {}
+            },
+            # creating placeholders for various analysis results
+            'chunking_recommendations': {},
+            'common_patterns': dict(self.analysis_results['common_patterns']),
+            'section_analysis': {},
+            'protocol_type_details': {}
+        }
+        
+        # analyze complexity score distribution
+        complexities = [m['complexity'] for m in self.analysis_results['complexity_metrics']]
+        report['summary']['complexity_distribution'] = {
+            'min': min(complexities),
+            'max': max(complexities),
+            'mean': sum(complexities) / len(complexities),
+            'quartiles': {
+                '25%': sorted(complexities)[len(complexities)//4],
+                '50%': sorted(complexities)[len(complexities)//2],
+                '75%': sorted(complexities)[3*len(complexities)//4]
+            }
+        }
+        
+        # analyze section length distribution
+        for section, lengths in self.analysis_results['section_lengths'].items():
+            if lengths:
+                report['section_analysis'][section] = {
+                    'avg_lines': sum(lengths) / len(lengths),
+                    'min_lines': min(lengths),
+                    'max_lines': max(lengths),
+                    'optimal_chunk_size': self.recommend_chunk_size(lengths)
+                }
+        
+        # group protocols by type and analyze their structures
+        for ptype, protocols in self.analysis_results['protocol_types'].items():
+            # iterate through each type and find all that match that type
+            type_structures = [s for s in self.analysis_results['protocol_structures'] if s['protocol_type'] == ptype]
+            
+            # count how many of each type and their average length
+            report['protocol_type_details'][ptype] = {
+                'count': len(protocols),
+                'avg_lines': sum(s['total_lines'] for s in type_structures) / len(type_structures) if type_structures else 0,
+                # find most common operations for this type
+                'common_operations': Counter([op for s in type_structures for op in s['key_operations']]).most_common(5),
+                # return example protocols of this type
+                'example_protocols': protocols[:3]
+            }
+        
+        # run chunking recommendations function
+        report['chunking_recommendations'] = self.generate_chunking_recommendations()
+        
+        return report
 
     # recommend chunk size + specific recommendations based on analysis
     def chunking_recommendations(self):
