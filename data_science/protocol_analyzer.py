@@ -12,7 +12,8 @@ from typing import Dict, List, Tuple, Any       # readability and type hinting
 
 class ProtocolAnalyzer:
     # initializing project directory
-    def _init_(self, base_dir: str):        # base_dir = directory
+    def __init__(self, base_dir: str):        # base_dir = directory
+        self.base_dir = Path(base_dir)
         self.analysis_results = {           # sets up new storage directory for analysis outputs
             'protocol_structures': [],
             'function_patterns': defaultdict(int),
@@ -156,7 +157,7 @@ class ProtocolAnalyzer:
                 'magnetic', 'engage', 'disengage'
             ],
             'thermocycler': [
-                'thermocycler', 'set_lid_temperature'
+                'thermocycler'
             ],
             'control_flow': [
                 'if_statement', 'for_loop', 'while_loop', 'try_except', 'with_statement'
@@ -380,17 +381,112 @@ class ProtocolAnalyzer:
         
         # run chunking recommendations function
         report['chunking_recommendations'] = self.generate_chunking_recommendations()
-        
+
         return report
 
-    # recommend chunk size + specific recommendations based on analysis
-    def chunking_recommendations(self):
-        return None
+    # recommend chunk size + specific recommendations based on length distribution
+    def recommend_chunk_size(self, lengths: List[int]) -> int:
+        sorted_lengths = sorted(lengths)
+        # use 75th percentile as chunk size to keep most sections intact
+        # fallback as 100 lines if no sections are found
+        return sorted_lengths[3*len(sorted_lengths)//4] if sorted_lengths else 100
     
-    # save results in previous analysis_results directory
-    def save_results(self, outputdir: str = "analysis_results"):
-        return None
+    # generate hyper-specific chunking recommendations for well-characterized protocols
+    def generate_chunking_recommendations(self) -> Dict:
+        # default = hybrid strategy with specific chunk sizes
+        recommendations = {
+            'strategy': 'hybrid',
+            'chunk_sizes': {},
+            'special_cases': {}
+        }
+        
+        # loop through protocol type dictionary 
+        for ptype in self.analysis_results['protocol_types']:
+            # gives us a list of protocol analysis dictionaries for individual types
+            type_structures = [s for s in self.analysis_results['protocol_structures'] if s['protocol_type'] == ptype]
+            # skip if no matches
+            if not type_structures:
+                continue
+            
+            # find average length of protocols of this type
+            avg_lines = sum(s['total_lines'] for s in type_structures) / len(type_structures)
+            
+            # protocol-specific recommendations
+            if ptype == 'pcr':
+                recommendations['chunk_sizes'][ptype] = {
+                    'setup_chunk': 150,  # thermocycler setup is complex
+                    'cycle_chunk': 100,  # each cycle step
+                    'strategy': 'section_based'
+                }
+            elif ptype == 'serial_dilution':
+                recommendations['chunk_sizes'][ptype] = {
+                    'setup_chunk': 80,
+                    'loop_chunk': 120,  # capture full dilution loops
+                    'strategy': 'loop_aware'
+                }
+            elif avg_lines > 800:
+                recommendations['chunk_sizes'][ptype] = {
+                    'base_chunk': 200,
+                    'overlap': 50,
+                    'strategy': 'sliding_window'
+                }
+            else:
+                recommendations['chunk_sizes'][ptype] = {
+                    'base_chunk': 150,
+                    'overlap': 30,
+                    'strategy': 'simple_chunking'
+                }
+        
+        # special cases for complex protocols (score > 20)
+        complex_protocols = [s for s in self.analysis_results['protocol_structures'] if s['complexity'] > 20]
+        if complex_protocols:
+            recommendations['special_cases']['high_complexity'] = {
+                # note how many complex protocols we found
+                'count': len(complex_protocols),
+                # recommend heirarchical chunking
+                'recommendation': 'Use hierarchical chunking with separate models for structure and details',
+                'examples': [p['name'] for p in complex_protocols[:3]]
+            }
+        
+        return recommendations
+    
+    # save results in established analysis_results directory
+    def save_results(self, output_dir: str = "analysis_results"):
+        # save it to the folder or make a new one if it doesn't exist
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        # save new report as a human-readable json 
+        report = self.generate_analysis_report()
+        with open(output_path / "protocol_analysis_report.json", 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        # save protocol structure dictionaries for chunking script
+        with open(output_path / "protocol_structures.json", 'w') as f:
+            json.dump(self.analysis_results['protocol_structures'], f, indent=2)
+        
+        # save complexity metrics as CSV
+        df = pd.DataFrame(self.analysis_results['complexity_metrics'])
+        df.to_csv(output_path / "complexity_metrics.csv", index=False)
+        
+        print(f"\nAnalysis complete! Results saved to {output_path}")
+        print("\nKey findings:")
+        print(f"- Total protocols analyzed: {report['summary']['total_protocols']}")
+        print(f"- Average protocol length: {report['summary']['avg_lines']:.0f} lines")
+        print(f"- Protocol types found: {report['summary']['protocol_types']}")
+        print(f"- Complexity range: {report['summary']['complexity_distribution']['min']} - {report['summary']['complexity_distribution']['max']}")
 
-    # main function to run the analysis yippee
-    if __name__ == "__main__":
-        main()
+def main():
+    # initialize the analyzer with the base directory
+    base_dir = r"C:\Users\bpfeiffer\Desktop\programming_projects\OT2_LLM\protoBuilds"
+    analyzer = ProtocolAnalyzer(base_dir)
+
+    # run the analysis
+    analyzer.analyze_all_protocols()
+        
+    # save the results
+    analyzer.save_results()
+
+# main function to run the analysis yippee
+if __name__ == "__main__":
+    main()
