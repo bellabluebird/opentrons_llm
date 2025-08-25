@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # data augmentation pipeline for OT-2 protocol training data
 #   - transforms chunks into diverse training examples with realistic user prompts
-#   - expands ~3000 chunks into 15000+ training examples through strategic variations
+#   - expands chunks into training examples
 
 import json
 import re
