@@ -417,7 +417,7 @@ def main():
     chunker = ProtocolChunker("analysis_results")
     
     # chunk all protocols
-    base_dir = r"C:\Users\bpfeiffer\Desktop\programming_projects\OT2_LLM\protoBuilds"
+    base_dir = "/Users/bellap/Desktop/Protocols-develop/protoBuilds"
     chunks = chunker.chunk_all_protocols(base_dir)
     
     # save results

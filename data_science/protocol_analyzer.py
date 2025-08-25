@@ -343,16 +343,19 @@ class ProtocolAnalyzer:
         
         # analyze complexity score distribution
         complexities = [m['complexity'] for m in self.analysis_results['complexity_metrics']]
-        report['summary']['complexity_distribution'] = {
-            'min': min(complexities),
-            'max': max(complexities),
-            'mean': sum(complexities) / len(complexities),
-            'quartiles': {
-                '25%': sorted(complexities)[len(complexities)//4],
-                '50%': sorted(complexities)[len(complexities)//2],
-                '75%': sorted(complexities)[3*len(complexities)//4]
+        if complexities:
+            report['summary']['complexity_distribution'] = {
+                'min': min(complexities),
+                'max': max(complexities),
+                'mean': sum(complexities) / len(complexities),
+                'quartiles': {
+                    '25%': sorted(complexities)[len(complexities)//4],
+                    '50%': sorted(complexities)[len(complexities)//2],
+                    '75%': sorted(complexities)[3*len(complexities)//4]
+                }
             }
-        }
+        else:
+            report['summary']['complexity_distribution'] = {'min': 0, 'max': 0, 'mean': 0, 'quartiles': {}}
         
         # analyze section length distribution
         for section, lengths in self.analysis_results['section_lengths'].items():
@@ -478,7 +481,7 @@ class ProtocolAnalyzer:
 
 def main():
     # initialize the analyzer with the base directory
-    base_dir = r"C:\Users\bpfeiffer\Desktop\programming_projects\OT2_LLM\protoBuilds"
+    base_dir = "/Users/bellap/Desktop/Protocols-develop/protoBuilds"
     analyzer = ProtocolAnalyzer(base_dir)
 
     # run the analysis
